@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80" fill="none">
+  <!-- Sparks above the I -->
+  <rect x="74" y="8" width="6" height="20" rx="3" fill="#ff1e27" />
+  <rect x="62" y="16" width="5" height="15" rx="2.5" transform="rotate(-28 62 16)" fill="#ff1e27" />
+  <rect x="88" y="14" width="5" height="15" rx="2.5" transform="rotate(28 88 14)" fill="#ff1e27" />
+  
+  <!-- Red dot above second 'i' in Vision -->
+  <circle cx="236" cy="18" r="8.5" fill="#ff1e27" />
+
+  <!-- Text "Ignite Vision" in bold rounded bespoke styling -->
+  <text x="4" y="62" font-family="'Space Grotesk', -apple-system, sans-serif" font-weight="800" font-size="52" fill="#060b1e" letter-spacing="-1.5">
+    Ignite <tspan fill="#060b1e">Vision</tspan>
+  </text>
+</svg>

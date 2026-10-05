@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// Contracts are readable ONLY by signed-in, verified Google accounts on the company domain.
+// ALL writes happen in Cloud Functions (Admin SDK bypasses these rules), so the browser can
+// never forge audit entries, signing tokens or signatures. Signers never touch Firestore:
+// they go through the getSigningSession / signContract functions using their private token.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isCompanyAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.lower().matches('^[^@]+@ignite-vision[.]com$');
+    }
+
+    match /contracts/{contractId} {
+      allow read: if isCompanyAdmin();
+      allow write: if false;
+    }
+
+    // signingTokens/* (token hash -> contract) is server-only.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
