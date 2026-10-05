@@ -1,6 +1,6 @@
 {
   "name": "IGNITE VISION DOCUMENTATION DASHBOARD",
-  "description": "",
+  "description": "Production-grade documentation dashboard and dual-party contract management platform with e-signature execution and cryptographic audit trails.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

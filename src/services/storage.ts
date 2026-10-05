@@ -1,5 +1,3 @@
-import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import {
   AuditEvent,
   Contract,
@@ -10,13 +8,13 @@ import {
   SignatureMethod,
   SigningSession
 } from '../types';
-import { db, functions } from './firebase';
+import { getAuthToken } from './auth';
 import { newId } from './security';
 
 const STORAGE_KEY_CATEGORIES = 'ignite_vision_contract_categories';
 
 // ----------------------------------------------------------------------
-// CATEGORY MANAGEMENT (ADD / EDIT / REMOVE)
+// CATEGORY MANAGEMENT (Synchronized with Server)
 // ----------------------------------------------------------------------
 const INITIAL_CATEGORIES: ContractCategory[] = [
   { id: 'cat_employment', name: 'Employment Agreement', description: 'Full-time, part-time, and executive employment agreements', createdAt: new Date().toISOString() },
@@ -26,30 +24,51 @@ const INITIAL_CATEGORIES: ContractCategory[] = [
   { id: 'cat_vendor', name: 'Vendor / Service Level Agreement', description: 'Commercial vendor, procurement, and SLA governance', createdAt: new Date().toISOString() }
 ];
 
-export function getCategories(): ContractCategory[] {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY_CATEGORIES);
-    if (!data) {
-      localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
-      return INITIAL_CATEGORIES;
+let cachedCategories: ContractCategory[] = INITIAL_CATEGORIES;
+try {
+  const localData = localStorage.getItem(STORAGE_KEY_CATEGORIES);
+  if (localData) {
+    const parsed = JSON.parse(localData);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      cachedCategories = parsed;
     }
-    const parsed = JSON.parse(data);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_CATEGORIES;
-  } catch {
-    return INITIAL_CATEGORIES;
   }
+} catch {
+  // Use INITIAL_CATEGORIES
+}
+
+export function refreshCategoriesFromServer(): void {
+  fetch('/api/categories')
+    .then(res => (res.ok ? res.json() : null))
+    .then(cats => {
+      if (Array.isArray(cats) && cats.length > 0) {
+        cachedCategories = cats;
+        try {
+          localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(cats));
+        } catch {}
+      }
+    })
+    .catch(() => undefined);
+}
+
+// Initial sync
+refreshCategoriesFromServer();
+
+export function getCategories(): ContractCategory[] {
+  return cachedCategories;
 }
 
 export function saveCategories(categories: ContractCategory[]): void {
+  cachedCategories = categories;
   try {
     localStorage.setItem(STORAGE_KEY_CATEGORIES, JSON.stringify(categories));
   } catch (err) {
-    console.error('Error saving categories:', err);
+    console.error('Error saving categories locally:', err);
   }
 }
 
 export function addCategory(name: string, description?: string): ContractCategory {
-  const categories = getCategories();
+  const categories = [...getCategories()];
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Category name cannot be empty');
 
@@ -65,11 +84,25 @@ export function addCategory(name: string, description?: string): ContractCategor
 
   categories.push(newCat);
   saveCategories(categories);
+
+  // Sync to server so all devices see the new category
+  const token = getAuthToken();
+  if (token) {
+    fetch('/api/categories', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ name: trimmed, description: description?.trim() || '' })
+    }).catch(err => console.warn('Could not sync category to server:', err));
+  }
+
   return newCat;
 }
 
 export function updateCategory(id: string, name: string, description?: string): ContractCategory {
-  const categories = getCategories();
+  const categories = [...getCategories()];
   const trimmed = name.trim();
   if (!trimmed) throw new Error('Category name cannot be empty');
 
@@ -86,6 +119,20 @@ export function updateCategory(id: string, name: string, description?: string): 
   };
 
   saveCategories(categories);
+
+  // Sync to server so all devices see the updated category
+  const token = getAuthToken();
+  if (token) {
+    fetch(`/api/categories/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ name: trimmed, description: description?.trim() || '' })
+    }).catch(err => console.warn('Could not sync updated category to server:', err));
+  }
+
   return categories[index];
 }
 
@@ -96,20 +143,59 @@ export function deleteCategory(id: string): void {
   }
   const filtered = categories.filter(c => c.id !== id);
   saveCategories(filtered);
+
+  // Sync to server so all devices see the deletion
+  const token = getAuthToken();
+  if (token) {
+    fetch(`/api/categories/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    }).catch(err => console.warn('Could not sync category deletion to server:', err));
+  }
 }
 
 // ----------------------------------------------------------------------
-// CONTRACTS (shared Firestore database, written only by Cloud Functions)
+// CONTRACTS LIVE SYNC ACROSS DEVICES
 // ----------------------------------------------------------------------
+export function subscribeContracts(
+  onData: (contracts: Contract[]) => void,
+  onError: (err: Error) => void
+): () => void {
+  let isCancelled = false;
 
-/** Live-updates when a signer signs, an email is logged, etc. Returns the unsubscribe function. */
-export function subscribeContracts(onData: (contracts: Contract[]) => void, onError: (err: Error) => void): () => void {
-  const q = query(collection(db, 'contracts'), orderBy('createdAt', 'desc'));
-  return onSnapshot(
-    q,
-    snap => onData(snap.docs.map(d => d.data() as Contract)),
-    err => onError(err)
-  );
+  const fetchContracts = async () => {
+    const token = getAuthToken();
+    if (!token) return;
+    try {
+      // Sync categories as well
+      refreshCategoriesFromServer();
+
+      const res = await fetch('/api/contracts', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 401) return;
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      if (!isCancelled) {
+        onData(data);
+      }
+    } catch (err: any) {
+      if (!isCancelled) {
+        onError(err);
+      }
+    }
+  };
+
+  fetchContracts();
+  const intervalId = setInterval(fetchContracts, 3000);
+
+  return () => {
+    isCancelled = true;
+    clearInterval(intervalId);
+  };
 }
 
 export function filterContracts(list: Contract[], statusFilter = 'all', searchQuery = ''): Contract[] {
@@ -145,7 +231,6 @@ export function calculateStats(contracts: Contract[]): ContractStats {
   };
 }
 
-/** Every email attempt across all contracts, newest first. */
 export function buildEmailOutbox(contracts: Contract[]): EmailLog[] {
   return contracts
     .flatMap(c => c.invitationHistory ?? [])
@@ -161,22 +246,32 @@ export function buildAuditVault(contracts: Contract[]): AuditVaultEntry[] {
 }
 
 // ----------------------------------------------------------------------
-// CLOUD FUNCTION CALLS
+// BACKEND API CLIENT CALLS
 // ----------------------------------------------------------------------
-async function call<TReq, TRes>(name: string, data: TReq): Promise<TRes> {
-  try {
-    const res = await httpsCallable<TReq, TRes>(functions, name)(data);
-    return res.data;
-  } catch (err) {
-    // Firebase errors carry a user-facing message from the function (e.g. "A contract numbered X already exists.")
-    const message = err instanceof Error ? err.message : 'Request failed';
-    throw new Error(message === 'internal' ? 'The server could not complete the request. Please try again.' : message);
+async function apiCall<TRes>(endpoint: string, options: RequestInit = {}): Promise<TRes> {
+  const token = getAuthToken();
+  const headers = new Headers(options.headers || {});
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
   }
+  if (!headers.has('Content-Type') && options.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const res = await fetch(endpoint, {
+    ...options,
+    headers
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || `Server request failed (${res.status})`);
+  }
+  return data as TRes;
 }
 
 export interface ContractMutationResult {
   contract: Contract;
-  /** Number of emails the mail server refused or that errored. 0 means every email was accepted for delivery. */
   emailsFailed: number;
 }
 
@@ -195,22 +290,36 @@ export interface CreateContractParams {
 }
 
 export const createContract = (params: CreateContractParams) =>
-  call<CreateContractParams, ContractMutationResult>('createContract', params);
+  apiCall<ContractMutationResult>('/api/contracts/create', {
+    method: 'POST',
+    body: JSON.stringify(params)
+  });
 
 export const sendInvitations = (contractId: string) =>
-  call<{ contractId: string }, ContractMutationResult>('sendInvitations', { contractId });
+  apiCall<ContractMutationResult>('/api/contracts/send-invitations', {
+    method: 'POST',
+    body: JSON.stringify({ contractId })
+  });
 
 export const sendReminder = (
   contractId: string,
   roleKey: PartyRoleKey,
   type: 'reminder_24h' | 'reminder_48h' | 'manual_reminder'
-) => call<{ contractId: string; roleKey: PartyRoleKey; type: string }, ContractMutationResult>('sendReminder', { contractId, roleKey, type });
+) =>
+  apiCall<ContractMutationResult>('/api/contracts/send-reminder', {
+    method: 'POST',
+    body: JSON.stringify({ contractId, roleKey, type })
+  });
 
 export const cancelContract = (contractId: string, reason: string) =>
-  call<{ contractId: string; reason: string }, { contract: Contract }>('cancelContract', { contractId, reason });
+  apiCall<{ contract: Contract }>('/api/contracts/cancel', {
+    method: 'POST',
+    body: JSON.stringify({ contractId, reason })
+  });
 
-// Signer (no login; authorised by the private token in the link)
-export const getSigningSession = (token: string) => call<{ token: string }, SigningSession>('getSigningSession', { token });
+// Signer Portal APIs (Public with token)
+export const getSigningSession = (token: string) =>
+  apiCall<SigningSession>(`/api/signing/${encodeURIComponent(token)}`);
 
 export const signContract = (params: {
   token: string;
@@ -218,4 +327,8 @@ export const signContract = (params: {
   signatureImage: string;
   signatureMethod: SignatureMethod;
   consentAgreed: boolean;
-}) => call<typeof params, SigningSession>('signContract', params);
+}) =>
+  apiCall<SigningSession>('/api/signing/sign', {
+    method: 'POST',
+    body: JSON.stringify(params)
+  });

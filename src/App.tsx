@@ -12,13 +12,14 @@ import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { SignerPortal } from './components/SignerPortal';
 import { EmailOutbox } from './components/EmailOutbox';
 import { AuditVault } from './components/AuditVault';
+import { GoogleDriveVault } from './components/GoogleDriveVault';
 import { AuthScreen } from './components/AuthScreen';
 
 export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [activeToken, setActiveToken] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'outbox' | 'audit'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'outbox' | 'audit' | 'drive'>('dashboard');
 
   const [allContracts, setAllContracts] = useState<Contract[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -59,7 +60,7 @@ export default function App() {
     };
   }, [checkTokenFromUrl]);
 
-  // Admin session (Firebase Auth, company Google accounts only)
+  // Admin session (secured company dashboard auth)
   useEffect(() => watchAdminSession(u => {
     setUser(u);
     setIsInitializing(false);
@@ -196,6 +197,14 @@ export default function App() {
               setSelectedContract(c);
               setActiveTab('dashboard');
             }}
+          />
+        )}
+
+        {/* GOOGLE DRIVE VAULT TAB */}
+        {activeTab === 'drive' && (
+          <GoogleDriveVault
+            contracts={allContracts}
+            onOpenCreate={() => setIsCreateOpen(true)}
           />
         )}
       </main>

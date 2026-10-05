@@ -1,5 +1,4 @@
-import { Contract, Signatory } from './types';
-import { escapeHtml as h } from './util';
+import { Contract, Signatory } from '../src/types';
 
 export interface RenderedEmail {
   subject: string;
@@ -8,6 +7,17 @@ export interface RenderedEmail {
 }
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+function escapeHtml(unsafe: string): string {
+  return String(unsafe ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+const h = escapeHtml;
 
 function shell(accent: string, title: string, tagline: string, body: string, padding = 28): string {
   return `
@@ -91,7 +101,7 @@ export function completionEmail(contract: Contract, recipient: Signatory): Rende
 <p style="font-size:13px;color:#334155;">All designated signatories (${contract.partyCount} Parties) have completed their electronic signatures for <strong>${h(contract.title)}</strong> (${h(contract.contractNumber)}).</p>
 <div style="background:#ecfdf5;border:1px solid #a7f3d0;padding:16px;border-radius:6px;margin:20px 0;font-size:12px;color:#065f46;">
   ${rows}
-  <div style="margin-top:10px;font-family:monospace;font-size:11px;color:#047857;word-break:break-all;">Final Hash: ${h(contract.finalPdfHash)}</div>
+  <div style="margin-top:10px;font-family:monospace;font-size:11px;color:#047857;word-break:break-all;">Final Hash: ${h(contract.finalPdfHash ?? '')}</div>
 </div>
 <p style="font-size:13px;color:#334155;">A certified copy with the Certificate of Completion is archived in the Ignite Vision Documentation Dashboard.</p>`
   );

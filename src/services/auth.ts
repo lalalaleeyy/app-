@@ -1,49 +1,95 @@
-import { GoogleAuthProvider, User, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
-import { ADMIN_EMAIL_DOMAIN } from '../config';
 import { AuthUser } from '../types';
-import { auth } from './firebase';
 
-const provider = new GoogleAuthProvider();
-// Hint Google to pre-select the company account. Authorization is still enforced server-side.
-provider.setCustomParameters({ prompt: 'select_account', hd: ADMIN_EMAIL_DOMAIN });
+const TOKEN_KEY = 'ignite_admin_token';
+const USER_KEY = 'ignite_admin_user';
 
-export function isCompanyAccount(user: User | null): boolean {
-  const email = user?.email?.toLowerCase() ?? '';
-  return !!user?.emailVerified && email.endsWith(`@${ADMIN_EMAIL_DOMAIN}`);
+let currentSessionUser: AuthUser | null = null;
+const listeners: Set<(user: AuthUser | null) => void> = new Set();
+
+export function getAuthToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
 }
 
-function toAuthUser(user: User): AuthUser {
-  const email = user.email ?? '';
-  return {
-    id: user.uid,
-    username: email,
-    name: user.displayName || email,
-    role: 'HR Document Operations Officer',
-    email
+export function getCurrentUser(): AuthUser | null {
+  if (currentSessionUser) return currentSessionUser;
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function notifyListeners(user: AuthUser | null) {
+  currentSessionUser = user;
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+  }
+  listeners.forEach(cb => cb(user));
+}
+
+/**
+ * Subscribes to the admin session.
+ */
+export function watchAdminSession(onChange: (user: AuthUser | null) => void): () => void {
+  listeners.add(onChange);
+
+  const token = getAuthToken();
+  if (!token) {
+    onChange(null);
+  } else {
+    // Validate session with backend
+    fetch('/api/auth/session', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Session invalid');
+        return res.json();
+      })
+      .then(data => {
+        if (data.user) {
+          notifyListeners(data.user);
+        } else {
+          notifyListeners(null);
+        }
+      })
+      .catch(() => {
+        notifyListeners(null);
+      });
+  }
+
+  return () => {
+    listeners.delete(onChange);
   };
 }
 
-/** Subscribes to the admin session. Non-company accounts are signed out immediately. */
-export function watchAdminSession(onChange: (user: AuthUser | null) => void): () => void {
-  return onAuthStateChanged(auth, async firebaseUser => {
-    if (firebaseUser && !isCompanyAccount(firebaseUser)) {
-      await signOut(auth);
-      onChange(null);
-      return;
-    }
-    onChange(firebaseUser ? toAuthUser(firebaseUser) : null);
+export async function signInAdmin(username: string, password: string): Promise<AuthUser> {
+  const res = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password })
   });
-}
 
-export async function signInAdmin(): Promise<AuthUser> {
-  const result = await signInWithPopup(auth, provider);
-  if (!isCompanyAccount(result.user)) {
-    await signOut(auth);
-    throw new Error(`Please sign in with your @${ADMIN_EMAIL_DOMAIN} Google account.`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || 'Authentication failed. Please check your credentials.');
   }
-  return toAuthUser(result.user);
+
+  localStorage.setItem(TOKEN_KEY, data.token);
+  notifyListeners(data.user);
+  return data.user;
 }
 
 export async function signOutAdmin(): Promise<void> {
-  await signOut(auth);
+  const token = getAuthToken();
+  if (token) {
+    fetch('/api/auth/logout', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    }).catch(() => undefined);
+  }
+  notifyListeners(null);
 }
