@@ -67,11 +67,19 @@ export function watchAdminSession(onChange: (user: AuthUser | null) => void): ()
 }
 
 export async function signInAdmin(username: string, password: string): Promise<AuthUser> {
-  const res = await fetch('/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
+  const cleanUsername = String(username || '').trim();
+  const cleanPassword = String(password || '').trim();
+
+  let res: Response;
+  try {
+    res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: cleanUsername, password: cleanPassword })
+    });
+  } catch (netErr: any) {
+    throw new Error('Connection error. Please check your internet connection.');
+  }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
