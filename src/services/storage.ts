@@ -171,6 +171,7 @@ export function subscribeContracts(
       refreshCategoriesFromServer();
 
       const res = await fetch('/api/contracts', {
+        credentials: 'include',
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) {
@@ -260,6 +261,7 @@ async function apiCall<TRes>(endpoint: string, options: RequestInit = {}): Promi
 
   const res = await fetch(endpoint, {
     ...options,
+    credentials: 'include',
     headers
   });
 

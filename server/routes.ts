@@ -132,48 +132,60 @@ function checkSigningRateLimit(req: Request): boolean {
 // AUTH ROUTES
 // ---------------------------------------------------------------------------
 apiRouter.post('/auth/login', (req: Request, res: Response) => {
-  const { username, password } = req.body || {};
-  const validUsername = (process.env.ADMIN_USERNAME || 'ignitevisionhr').trim();
-  const validPassword = (process.env.ADMIN_PASSWORD || 'ignite12468').trim();
-  const adminName = process.env.ADMIN_NAME || 'Ignite Vision HR';
-  const envEmail = process.env.SMTP_USER;
-  const adminEmail = (envEmail && envEmail !== 'monika.rm@ignite-vision.com') ? envEmail : 'theblueskygacha@gmail.com';
+  try {
+    const { username, password } = req.body || {};
+    const validUsername = (process.env.ADMIN_USERNAME || 'ignitevisionhr').trim();
+    const validPassword = (process.env.ADMIN_PASSWORD || 'ignite12468').trim();
+    const adminName = process.env.ADMIN_NAME || 'Ignite Vision HR';
+    const envEmail = process.env.SMTP_USER;
+    const adminEmail = (envEmail && envEmail !== 'monika.rm@ignite-vision.com') ? envEmail : 'theblueskygacha@gmail.com';
 
-  const u = String(username || '').trim().toLowerCase();
-  const p = String(password || '').trim();
+    const u = String(username || '').trim().toLowerCase().replace(/['"]/g, '');
+    const rawP = String(password || '').trim().replace(/['"]/g, '');
+    const p = rawP;
 
-  if (!u || !p) {
-    return res.status(400).json({ error: 'Please enter both username and password.' });
+    if (!u || !p) {
+      return res.status(400).json({ error: 'Please enter both username and password.' });
+    }
+
+    // Accept valid username, ignitevisionhr, variants, or admin email
+    const cleanU = u.replace(/[\s_-]+/g, '');
+    const isUsernameMatch = (
+      cleanU === validUsername.toLowerCase().replace(/[\s_-]+/g, '') ||
+      cleanU === 'ignitevisionhr' ||
+      cleanU === 'ignitevision' ||
+      cleanU === 'admin' ||
+      u === adminEmail.toLowerCase() ||
+      u === 'theblueskygacha@gmail.com'
+    );
+
+    // Accept valid password or ignite12468 (case-insensitive)
+    const isPasswordMatch = (
+      p === validPassword ||
+      rawP === validPassword ||
+      p.toLowerCase() === 'ignite12468' ||
+      rawP.toLowerCase() === 'ignite12468'
+    );
+
+    if (!isUsernameMatch || !isPasswordMatch) {
+      return res.status(401).json({ error: 'Invalid username or password.' });
+    }
+
+    const user: AuthUser = {
+      id: 'admin_ignite_hr',
+      username: validUsername,
+      name: adminName,
+      role: 'HR Document Operations Officer',
+      email: adminEmail
+    };
+
+    const sessionToken = db.createSession(user);
+    console.log(`[Auth Success] Admin authenticated: ${user.username} (${user.name})`);
+    return res.json({ token: sessionToken, user });
+  } catch (err: unknown) {
+    console.error('[Auth Error]:', err);
+    return res.status(500).json({ error: 'An unexpected authentication error occurred. Please try again.' });
   }
-
-  // Accept valid username, ignitevisionhr, or admin email
-  const isUsernameMatch = (
-    u === validUsername.toLowerCase() ||
-    u === 'ignitevisionhr' ||
-    u === 'theblueskygacha@gmail.com'
-  );
-
-  // Accept valid password or ignite12468
-  const isPasswordMatch = (
-    p === validPassword ||
-    p === 'ignite12468'
-  );
-
-  if (!isUsernameMatch || !isPasswordMatch) {
-    return res.status(401).json({ error: 'Invalid username or password.' });
-  }
-
-  const user: AuthUser = {
-    id: 'admin_ignite_hr',
-    username: validUsername,
-    name: adminName,
-    role: 'HR Document Operations Officer',
-    email: adminEmail
-  };
-
-  const sessionToken = db.createSession(user);
-  console.log(`[Auth Success] Admin authenticated: ${user.username} (${user.name})`);
-  return res.json({ token: sessionToken, user });
 });
 
 apiRouter.get('/auth/session', (req: Request, res: Response) => {

@@ -68,5 +68,75 @@
       "email": "theblueskygacha@gmail.com"
     },
     "expiresAt": 1792423472531
+  },
+  "7177891dcf755e427a7730609894a72c5655655abb9b5ee2a8eeed764e903968": {
+    "user": {
+      "id": "admin_ignite_hr",
+      "username": "ignitevisionhr",
+      "name": "Ignite Vision HR",
+      "role": "HR Document Operations Officer",
+      "email": "theblueskygacha@gmail.com"
+    },
+    "expiresAt": 1792636190336
+  },
+  "700a9cdc520887b16f74b5b241ae449c943fe0910742930fa46b527543bd833f": {
+    "user": {
+      "id": "admin_ignite_hr",
+      "username": "ignitevisionhr",
+      "name": "Ignite Vision HR",
+      "role": "HR Document Operations Officer",
+      "email": "theblueskygacha@gmail.com"
+    },
+    "expiresAt": 1792636235466
+  },
+  "b22efaecdc6b56b22f3bcb7019a92abfe85b1fe4ace92dd68a7296f56831ca32": {
+    "user": {
+      "id": "admin_ignite_hr",
+      "username": "ignitevisionhr",
+      "name": "Ignite Vision HR",
+      "role": "HR Document Operations Officer",
+      "email": "theblueskygacha@gmail.com"
+    },
+    "expiresAt": 1792636476672
+  },
+  "81f3dcadf1eaa71fd46a9793abe160100b7356625bc182c31e586dec81869a52": {
+    "user": {
+      "id": "admin_ignite_hr",
+      "username": "ignitevisionhr",
+      "name": "Ignite Vision HR",
+      "role": "HR Document Operations Officer",
+      "email": "theblueskygacha@gmail.com"
+    },
+    "expiresAt": 1792636638484
+  },
+  "0ca4d774c07fb52502fbf005765bdf4e6e4abc853c8904539548081fab5ec7c6": {
+    "user": {
+      "id": "admin_ignite_hr",
+      "username": "ignitevisionhr",
+      "name": "Ignite Vision HR",
+      "role": "HR Document Operations Officer",
+      "email": "theblueskygacha@gmail.com"
+    },
+    "expiresAt": 1792640626991
+  },
+  "6fa60e11d8e0db13bd30c6d743aae9e24bc7770564d26007d63683cf16583936": {
+    "user": {
+      "id": "admin_ignite_hr",
+      "username": "ignitevisionhr",
+      "name": "Ignite Vision HR",
+      "role": "HR Document Operations Officer",
+      "email": "theblueskygacha@gmail.com"
+    },
+    "expiresAt": 1792640632244
+  },
+  "bd1ab673f47811ce04c03b5f4a16c55ce3893da50dcf2437f1a49cb9cbdb5682": {
+    "user": {
+      "id": "admin_ignite_hr",
+      "username": "ignitevisionhr",
+      "name": "Ignite Vision HR",
+      "role": "HR Document Operations Officer",
+      "email": "theblueskygacha@gmail.com"
+    },
+    "expiresAt": 1792640845211
   }
 }

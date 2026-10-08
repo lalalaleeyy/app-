@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AuthUser } from '../types';
 import { signInAdmin } from '../services/auth';
 import { Logo } from './Logo';
-import { ArrowRight, ShieldCheck, Lock, User as UserIcon } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Lock, User as UserIcon, Eye, EyeOff, KeyRound } from 'lucide-react';
 import { getErrorMessage } from '../services/security';
 
 interface AuthScreenProps {
@@ -12,15 +12,39 @@ interface AuthScreenProps {
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleQuickLogin = async () => {
+    setUsername('ignitevisionhr');
+    setPassword('ignite12468');
+    setErrorMessage(null);
+    try {
+      setIsLoading(true);
+      const user = await signInAdmin('ignitevisionhr', 'ignite12468');
+      onLoginSuccess(user);
+    } catch (err) {
+      setErrorMessage(getErrorMessage(err, 'Sign-in failed. Please check your credentials.'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    const cleanUser = username.trim();
+    const cleanPass = password.trim();
+
+    if (!cleanUser || !cleanPass) {
+      setErrorMessage('Please enter both username and password.');
+      return;
+    }
+
     try {
       setIsLoading(true);
-      const user = await signInAdmin(username, password);
+      const user = await signInAdmin(cleanUser, cleanPass);
       onLoginSuccess(user);
     } catch (err) {
       setErrorMessage(getErrorMessage(err, 'Sign-in failed. Please check your credentials.'));
@@ -58,22 +82,46 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               </div>
             )}
 
-            <p className="text-xs text-slate-600 leading-relaxed font-medium">
-              Enter your administrative credentials to manage enterprise contracts and audit logs.
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                Enter your administrative credentials to manage enterprise contracts.
+              </p>
+            </div>
+
+            {/* Quick Fill & Instant Sign-in Button */}
+            <button
+              type="button"
+              onClick={handleQuickLogin}
+              disabled={isLoading}
+              className="w-full flex items-center justify-between p-2.5 rounded-lg bg-red-50 hover:bg-red-100/80 border border-red-200 text-[#060b1e] text-xs transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              title="One-click automatic sign-in with default admin credentials"
+            >
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-[#ff1e27] shrink-0" />
+                <span className="font-bold text-slate-800">Quick Sign In:</span>
+                <span className="font-mono text-[11px] text-slate-600 bg-white px-1.5 py-0.5 rounded border border-red-100">ignitevisionhr</span>
+              </div>
+              <span className="text-[10px] uppercase font-extrabold text-[#ff1e27] bg-white px-2 py-0.5 rounded-md border border-red-200 shadow-2xs">
+                Log In Now &rarr;
+              </span>
+            </button>
 
             <div className="space-y-1">
               <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-700">
                 Admin Username
               </label>
               <div className="relative">
-                <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  autoComplete="username"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  placeholder="Enter username"
+                  placeholder="ignitevisionhr"
                   className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-[#e1e7f5] bg-[#f8faff] text-[#060b1e] font-mono focus:outline-none focus:ring-2 focus:ring-[#ff1e27]"
                 />
               </div>
@@ -84,15 +132,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                 Password
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  autoComplete="current-password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-[#e1e7f5] bg-[#f8faff] text-[#060b1e] font-mono focus:outline-none focus:ring-2 focus:ring-[#ff1e27]"
+                  placeholder="ignite12468"
+                  className="w-full pl-9 pr-9 py-2 text-xs rounded-lg border border-[#e1e7f5] bg-[#f8faff] text-[#060b1e] font-mono focus:outline-none focus:ring-2 focus:ring-[#ff1e27]"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded transition-colors cursor-pointer"
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
               </div>
             </div>
 
